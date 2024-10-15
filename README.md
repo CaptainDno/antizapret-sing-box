@@ -19,7 +19,7 @@ Project currently consists from two utilities:
 # Changes in this fork
 
 + GitHub release feature removed
-+ Parallel processing of CSV file (too speedup regex matching)
++ Parallel processing of CSV file (to speedup regex matching)
 + Uncomment host exclusion by regex
 + Use local include and exclude file for domains
 + Some separation of code
@@ -31,7 +31,7 @@ Project currently consists from two utilities:
 ## Example
 
 Below is the example of configuration using WireGuard outbound
-(you can easily switch it to Shadowsocks or everything else sing-box supports) and encrypted AdGuard DNS
+(you can easily switch it to ShadowSocks or everything else sing-box supports) and encrypted AdGuard DNS
 (which will work over WireGuard to block ads and trackers while connected).
 
 ```json
