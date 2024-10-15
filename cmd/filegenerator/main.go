@@ -1,15 +1,18 @@
 package main
 
 import (
+	"fmt"
 	"log"
 
-	"github.com/L11R/antizapret-sing-geosite/geosite_antizapret"
+	"github.com/CaptainDno/antizapret-sing-geosite/geosite_antizapret"
 )
 
 func main() {
 	generator := geosite_antizapret.NewGenerator()
 
-	if err := generator.GenerateAndWrite(); err != nil {
+	fmt.Println("Starting....")
+
+	if err := generator.GenerateAndWrite("output"); err != nil {
 		log.Fatal(err)
 	}
 }

@@ -15,14 +15,18 @@ Project currently consists from two utilities:
 
 - `filegenerator` -- simple utility to generate `antizapret.srs`, `antizapret-ruleset.json`, `geoip.db`
   and `geosite.db` files from CSV dump.
-- `githubreleaser` -- utility to create release and upload assets.
 
-You can download the latest `antizapret.srs`, `geoip.db` and `geosite.db` here:
-- https://github.com/savely-krasovsky/antizapret-sing-box/releases/latest/download/antizapret.srs
-- https://github.com/savely-krasovsky/antizapret-sing-box/releases/latest/download/geoip.db
-- https://github.com/savely-krasovsky/antizapret-sing-box/releases/latest/download/geosite.db
+# Changes in this fork
 
-**UPD.** Sorry, around April 6 2024 the links broke, I restored them today, April 12.
++ GitHub release feature removed
++ Parallel processing of CSV file (too speedup regex matching)
++ Uncomment host exclusion by regex
++ Use local include and exclude file for domains
++ Some separation of code
+
+# TODO
+
++ Add docker support
 
 ## Example
 

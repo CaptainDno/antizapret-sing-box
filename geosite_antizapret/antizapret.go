@@ -40,69 +40,49 @@ type AntizapretConfig struct {
 type Configs struct {
 	ExcludeHosts  []string
 	ExcludeIPs    []netip.Addr
-	ExcludeRegexp []*regexp.Regexp
+	ExcludeRegexp *[]regexp.Regexp
 
 	IncludeHosts []string
 	IncludeIPs   []*net.IPNet
 }
 
 func (g *Generator) fetchAntizapretConfigs() (*Configs, error) {
-	cfgs := []AntizapretConfig{
-		{HostsByIPs, true, AntizapretPACGeneratorLightUpstreamBaseURL + ExcludeHostsByIPsDist},
-		{Hosts, true, AntizapretPACGeneratorLightUpstreamBaseURL + ExcludeHostsDist},
-		{Regexp, true, AntizapretPACGeneratorLightUpstreamBaseURL + ExcludeRegexpDist},
-		{Hosts, false, AntizapretPACGeneratorLightUpstreamBaseURL + IncludeHostsDist},
-	}
-
 	configs := &Configs{}
+	var err error
 
-	for _, cfg := range cfgs {
-		resp, err := g.httpClient.Get(cfg.URL)
-		if err != nil {
-			return nil, fmt.Errorf("cannot get antizapret exclude config: %w", err)
-		}
-		defer resp.Body.Close()
+	// Get Local files
+	configs.ExcludeRegexp, err = GetExcludedDomains("excluded.txt")
 
-		scanner := bufio.NewScanner(resp.Body)
-		for scanner.Scan() {
-			switch cfg.Type {
-			case Hosts:
-				if cfg.Exclude {
-					configs.ExcludeHosts = append(configs.ExcludeHosts, scanner.Text())
-				} else {
-					configs.IncludeHosts = append(configs.IncludeHosts, scanner.Text())
-				}
-			case HostsByIPs:
-				if cfg.Exclude {
-					ipStr := scanner.Text()
-					ipStr = strings.ReplaceAll(ipStr, "\\", "")
-					ipStr = strings.Replace(ipStr, "^", "", 1)
-					ipStr = strings.Replace(ipStr, ";", "", 1)
-					addr, err := netip.ParseAddr(ipStr)
-					if err != nil {
-						log.Println(err)
-						continue
-					}
-
-					configs.ExcludeIPs = append(configs.ExcludeIPs, addr)
-				}
-			case Regexp:
-				if cfg.Exclude {
-					rxStr := scanner.Text()
-					rxStr = strings.Replace(rxStr, "/) {next}", "", 1)
-					rxStr = strings.Replace(rxStr, "(/", "", 1)
-
-					rx, err := regexp.Compile(rxStr)
-					if err != nil {
-						log.Println(err)
-						continue
-					}
-
-					configs.ExcludeRegexp = append(configs.ExcludeRegexp, rx)
-				}
-			}
-		}
+	if err != nil {
+		return nil, fmt.Errorf("cannot get exclude domains: %w", err)
 	}
 
+	configs.IncludeHosts, err = GetIncludedDomains("included.txt")
+	if err != nil {
+		return nil, fmt.Errorf("cannot get included domains: %w", err)
+	}
+
+	// Get excluded IPs
+	resp, err := g.httpClient.Get(AntizapretPACGeneratorLightUpstreamBaseURL + ExcludeHostsByIPsDist)
+
+	if err != nil {
+		return nil, fmt.Errorf("cannot get antizapret exclude config: %w", err)
+	}
+
+	scanner := bufio.NewScanner(resp.Body)
+
+	for scanner.Scan() {
+		ipStr := scanner.Text()
+		ipStr = strings.ReplaceAll(ipStr, "\\", "")
+		ipStr = strings.Replace(ipStr, "^", "", 1)
+		ipStr = strings.Replace(ipStr, ";", "", 1)
+		addr, err := netip.ParseAddr(ipStr)
+		if err != nil {
+			log.Println(err)
+			continue
+		}
+
+		configs.ExcludeIPs = append(configs.ExcludeIPs, addr)
+	}
 	return configs, nil
 }
