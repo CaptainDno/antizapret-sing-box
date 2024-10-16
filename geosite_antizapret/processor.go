@@ -47,8 +47,6 @@ func ProcessRecords(records <-chan []string, cfg *Configs, IPsOut chan<- *net.IP
 					Value: rec[1],
 				}
 			}
-
-			included++
 		}
 
 		// Process IP addresses
@@ -96,8 +94,8 @@ func ProcessRecords(records <-chan []string, cfg *Configs, IPsOut chan<- *net.IP
 			}
 
 			IPsOut <- ipNet
-			included++
 		}
+		included++
 	}
 	return included, excluded
 }
