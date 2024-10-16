@@ -11,6 +11,41 @@ import (
 func ProcessRecords(records <-chan []string, cfg *Configs, IPsOut chan<- *net.IPNet, rulesOut chan<- geosite.Item) {
 	var err error
 	for rec := range records {
+
+		// Process domain
+		if rec[1] != "" {
+			exclude := false
+
+			for _, re := range *cfg.ExcludeRegexp {
+				if re.MatchString(rec[1]) {
+					exclude = true
+					break
+				}
+			}
+
+			if exclude {
+				continue
+			}
+
+			if strings.HasPrefix(rec[1], "*") {
+
+				rulesOut <- geosite.Item{
+					Type:  geosite.RuleTypeDomain,
+					Value: strings.Replace(rec[1], "*.", "", 1),
+				}
+
+				rulesOut <- geosite.Item{
+					Type:  geosite.RuleTypeDomainSuffix,
+					Value: strings.Replace(rec[1], "*", "", 1),
+				}
+			} else {
+				rulesOut <- geosite.Item{
+					Type:  geosite.RuleTypeDomain,
+					Value: rec[1],
+				}
+			}
+		}
+
 		// Process IP addresses
 		ips := strings.Split(rec[0], "|")
 
@@ -55,43 +90,6 @@ func ProcessRecords(records <-chan []string, cfg *Configs, IPsOut chan<- *net.IP
 			}
 
 			IPsOut <- ipNet
-		}
-
-		// Process domain
-
-		if rec[1] == "" {
-			continue
-		}
-
-		exclude := false
-
-		for _, re := range *cfg.ExcludeRegexp {
-			if re.MatchString(rec[1]) {
-				exclude = true
-				break
-			}
-		}
-
-		if exclude {
-			continue
-		}
-
-		if strings.HasPrefix(rec[1], "*") {
-
-			rulesOut <- geosite.Item{
-				Type:  geosite.RuleTypeDomain,
-				Value: strings.Replace(rec[1], "*.", "", 1),
-			}
-
-			rulesOut <- geosite.Item{
-				Type:  geosite.RuleTypeDomainSuffix,
-				Value: strings.Replace(rec[1], "*", "", 1),
-			}
-		} else {
-			rulesOut <- geosite.Item{
-				Type:  geosite.RuleTypeDomain,
-				Value: rec[1],
-			}
 		}
 	}
 }
