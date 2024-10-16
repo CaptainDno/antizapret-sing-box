@@ -12,6 +12,7 @@ func ProcessRecords(records <-chan []string, cfg *Configs, IPsOut chan<- *net.IP
 	var err error
 	included = 0
 	excluded = 0
+mainLoop:
 	for rec := range records {
 
 		// Process domain
@@ -80,7 +81,7 @@ func ProcessRecords(records <-chan []string, cfg *Configs, IPsOut chan<- *net.IP
 				}
 				if exclude {
 					excluded++
-					break
+					continue mainLoop
 				}
 
 				ipNet = &net.IPNet{
