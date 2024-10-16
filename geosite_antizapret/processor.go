@@ -8,8 +8,10 @@ import (
 	"strings"
 )
 
-func ProcessRecords(records <-chan []string, cfg *Configs, IPsOut chan<- *net.IPNet, rulesOut chan<- geosite.Item) {
+func ProcessRecords(records <-chan []string, cfg *Configs, IPsOut chan<- *net.IPNet, rulesOut chan<- geosite.Item) (included, excluded uint64) {
 	var err error
+	included = 0
+	excluded = 0
 	for rec := range records {
 
 		// Process domain
@@ -24,6 +26,7 @@ func ProcessRecords(records <-chan []string, cfg *Configs, IPsOut chan<- *net.IP
 			}
 
 			if exclude {
+				excluded++
 				continue
 			}
 
@@ -44,6 +47,8 @@ func ProcessRecords(records <-chan []string, cfg *Configs, IPsOut chan<- *net.IP
 					Value: rec[1],
 				}
 			}
+
+			included++
 		}
 
 		// Process IP addresses
@@ -76,6 +81,7 @@ func ProcessRecords(records <-chan []string, cfg *Configs, IPsOut chan<- *net.IP
 					}
 				}
 				if exclude {
+					excluded++
 					break
 				}
 
@@ -90,6 +96,8 @@ func ProcessRecords(records <-chan []string, cfg *Configs, IPsOut chan<- *net.IP
 			}
 
 			IPsOut <- ipNet
+			included++
 		}
 	}
+	return included, excluded
 }

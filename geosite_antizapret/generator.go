@@ -12,6 +12,8 @@ import (
 	"path"
 	"runtime"
 	"sync"
+	"sync/atomic"
+	"time"
 )
 
 const DefaultDownloadURL = "https://raw.githubusercontent.com/zapret-info/z-i/master/dump.csv"
@@ -49,11 +51,14 @@ func NewGenerator(opts ...GeneratorOption) *Generator {
 }
 
 func (g *Generator) generate(in io.Reader, geositePath, geoipPath, rulesetJSONPath, rulesetBinPath string) error {
+	fmt.Println("Loading configuration files...")
 	antizapretConfigs, err := g.fetchAntizapretConfigs()
+	start := time.Now()
 	if err != nil {
 		return fmt.Errorf("cannot fetch antizapret configs: %w", err)
 	}
-	fmt.Println("Configs loaded.")
+	fmt.Printf("✓ Configs loaded\n\tExclusion regular expressions: %d\n\tAdditionally included domains: %d\n\tExcluded IP/subnets: %d\n",
+		len(*antizapretConfigs.ExcludeRegexp), len(antizapretConfigs.IncludeHosts), len(antizapretConfigs.ExcludeIPs))
 
 	// create csv reader with CP1251 decoder
 	r := csv.NewReader(charmap.Windows1251.NewDecoder().Reader(in))
@@ -68,38 +73,47 @@ func (g *Generator) generate(in io.Reader, geositePath, geoipPath, rulesetJSONPa
 	ipOutChannel := make(chan *net.IPNet, 5000)
 	ruleOutChannel := make(chan geosite.Item, 5000)
 
+	var included, excluded atomic.Uint64
+
 	// Start parallel processing
 	wgProc := sync.WaitGroup{}
+	fmt.Printf("\nStarting %d initial processing routines...\n", runtime.NumCPU())
 	for i := 0; i < runtime.NumCPU(); i++ {
 		wgProc.Add(1)
 		go func() {
-			ProcessRecords(recordsChannel, antizapretConfigs, ipOutChannel, ruleOutChannel)
+			inc, exc := ProcessRecords(recordsChannel, antizapretConfigs, ipOutChannel, ruleOutChannel)
+			included.Add(inc)
+			excluded.Add(exc)
 			wgProc.Done()
 		}()
-		fmt.Println("Processor started")
 	}
-
+	fmt.Println("✓ Done")
 	wgGen := sync.WaitGroup{}
 
 	// Generate geoip
-	fmt.Println("Generating geoip.db")
+	fmt.Println("\nStarting geoip.db generator...")
 	wgGen.Add(1)
 	go func() {
 		if err := GenerateGeoip(geoipPath, ipOutChannel, ipNetsSet); err != nil {
 			fmt.Errorf("cannot generate geoip: %w", err)
 		}
 		wgGen.Done()
+		fmt.Printf("\n✓ geoip.db generated\n\tTime since start: %s\n", time.Since(start))
 	}()
+	fmt.Println("✓ Done")
 
 	// Generate geosite
 	wgGen.Add(1)
-	fmt.Println("Generating geosite.db")
+	fmt.Println("\nStarting geosite.db generator...")
 	go func() {
+		siteGenStart := time.Now()
 		if err := GenerateGeosite(geositePath, ruleOutChannel, domainsSet, domainSuffixesSet); err != nil {
 			fmt.Errorf("cannot generate geosite: %w", err)
 		}
 		wgGen.Done()
+		fmt.Printf("\n✓ geosite.db generated\n\tTime since start: %s\n", time.Since(siteGenStart))
 	}()
+	fmt.Println("✓ Done")
 
 	go func() {
 		// Additional domains
@@ -120,11 +134,14 @@ func (g *Generator) generate(in io.Reader, geositePath, geoipPath, rulesetJSONPa
 		close(ruleOutChannel)
 		close(ipOutChannel)
 
-		fmt.Println("Initial processing finished.")
+		fmt.Printf("\n✓ Initial processing finished.\n\tRecords included: %d\n\tRecords excluded: %d\n\tAddtitional hosts: %d\n\tTime since start: %s\n",
+			included.Load(), excluded.Load(), len(antizapretConfigs.IncludeHosts), time.Since(start))
 	}()
 
 	first := true
-	fmt.Println("Reading CSV")
+	fmt.Println("\nReading CSV...")
+
+	recordsRead := 0
 	for {
 		rec, err := r.Read()
 		if err == io.EOF {
@@ -143,18 +160,26 @@ func (g *Generator) generate(in io.Reader, geositePath, geoipPath, rulesetJSONPa
 		}
 
 		recordsChannel <- rec
+		recordsRead++
 	}
 	// Close records channel
 	close(recordsChannel)
 
-	fmt.Println("CSV read finished")
+	fmt.Printf("\n✓ CSV processed.\n\tTotal record count: %d\n\tTime since start: %s\n", recordsRead, time.Since(start))
 
 	// Wait for sets to populate
 	wgGen.Wait()
 
+	fmt.Printf("\nReady to generate ruleset.\n\tIPs/subnets total: %d\n\tDomains (exact) total: %d\n\tDomains (suffixes) total: %d\n", len(ipNetsSet), len(domainsSet), len(domainSuffixesSet))
+
 	// Rule Set
-	fmt.Println("Generating ruleset")
-	return GenerateRuleset(rulesetJSONPath, rulesetBinPath, ipNetsSet, domainsSet, domainSuffixesSet)
+	fmt.Println("\nGenerating ruleset")
+	err = GenerateRuleset(rulesetJSONPath, rulesetBinPath, ipNetsSet, domainsSet, domainSuffixesSet)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("✓ Generated ruleset\n\tTime since start: %s\n", time.Since(start))
+	return nil
 }
 
 func (g *Generator) GenerateAndWrite(outputBasePath string) error {

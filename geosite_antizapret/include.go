@@ -2,7 +2,6 @@ package geosite_antizapret
 
 import (
 	"bufio"
-	"fmt"
 	"os"
 )
 
@@ -22,7 +21,6 @@ func GetIncludedDomains(path string) ([]string, error) {
 			continue
 		}
 		domains = append(domains, sc.Text())
-		fmt.Println("Including " + sc.Text())
 	}
 
 	err = sc.Err()

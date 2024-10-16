@@ -28,7 +28,6 @@ func GetExcludedDomains(path string) (*[]regexp.Regexp, error) {
 			os.Exit(-1)
 		}
 		expressions = append(expressions, *re)
-		fmt.Println("Excluding (regex): " + re.String())
 	}
 
 	err = sc.Err()
